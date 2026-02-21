@@ -1,5 +1,7 @@
 import os
 import typer
+import sys 
+import subprocess
 from pathlib import Path
 from typing import Optional
 from rich.console import Console
@@ -97,6 +99,55 @@ def create_file_structure(dir_name: str, file_name: str, content: str = ""):
         console.print(f"[yellow]Already exists:[/] {file_path}")
 
 
+# =========================================================
+# env generator
+# =========================================================
+def ensure_env_file():
+    env_file = ".env"
+
+    required_vars = {
+        "DATABASE_URL": "postgresql://user:password@localhost:5432/dbname",
+        "SSL_PATH": "./certs/ca.pem",
+    }
+
+    # ❌ File doesn't exist → create full
+    if not os.path.exists(env_file):
+        with open(env_file, "w") as f:
+            f.write("# Database config\n")
+            for key, value in required_vars.items():
+                f.write(f"{key}={value}\n")
+        console.print("[green]Created .env file[/]")
+        return
+
+    # ✅ File exists → read current vars
+    with open(env_file, "r") as f:
+        lines = f.readlines()
+
+    existing_keys = set()
+    for line in lines:
+        if "=" in line and not line.strip().startswith("#"):
+            existing_keys.add(line.split("=")[0].strip())
+
+    # find missing vars
+    missing = {
+        k: v for k, v in required_vars.items() if k not in existing_keys
+    }
+
+    if not missing:
+        console.print("[yellow].env already up-to-date[/]")
+        return
+
+    # append missing vars
+    with open(env_file, "a") as f:
+        f.write("\n# Added by Shafikul CLI\n")
+        for key, value in missing.items():
+            f.write(f"{key}={value}\n")
+
+    console.print("[cyan]Updated .env with missing variables[/]")
+
+#=========================================================
+# check main.py file a code add 
+#=========================================================
 def ensure_main_py():
     main_file = "main.py"
 
@@ -179,6 +230,15 @@ db: Session = Depends(get_db)
             f.write(updated)
     else:
         console.print("[yellow]main.py already has DB setup[/]")
+
+
+# =========================================================
+#  package install for dependicy
+# =========================================================
+def install_dependencies(packages: list[str]):
+    console.print("[cyan]Installing dependencies...[/]")
+    for pkg in packages:
+        subprocess.call([sys.executable, "-m", "pip", "install", pkg])
 
 # =========================================================
 # 🛠 CREATE APP
@@ -266,6 +326,20 @@ Base = declarative_base()
 
         # ✅ NEW: inject DB into main.py
         ensure_db_in_main()
+
+        # ✅ Create .env
+        ensure_env_file()
+
+        # ✅ Auto install deps
+        install_dependencies([
+            "sqlalchemy",
+            "python-dotenv"
+        ])
+
+        console.print("[yellow]Run Command: alembic init migrations[/]")
+        console.print("[yellow]Then Run Command: alembic revision --autogenerate -m 'create users table'[/]")
+
+
     else:
         console.print("[red]Unknown target![/]")
 
