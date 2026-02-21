@@ -431,11 +431,11 @@ Base = declarative_base()
 
         # ✅ Auto install deps
         install_dependencies([
-            # "fastapi",
-            # "uvicorn[all]",
-            # "jinja2",
-            # "sqlalchemy",
-            # "python-dotenv"
+            "fastapi",
+            "uvicorn[all]",
+            "jinja2",
+            "sqlalchemy",
+            "python-dotenv"
         ])
 
         console.print("[yellow]Run Command: alembic init migrations[/]")
