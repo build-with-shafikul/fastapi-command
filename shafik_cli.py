@@ -110,6 +110,10 @@ def create_html_file(file_name: str, content: str):
     templates_dir = Path("templates")  # root relative path
     target_file = templates_dir / file_name
 
+    # Static Folder Create
+    static_dir = Path("static")
+    static_dir.mkdir(parents=True, exist_ok=True)
+
     # ✅ Create templates folder if missing
     if not templates_dir.exists():
         templates_dir.mkdir(parents=True, exist_ok=True)
@@ -195,12 +199,12 @@ app = FastAPI()
 # =================================
 # Add Middleware
 # =================================
-app.middleware(
+app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", "http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000", "*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*", "http://localhost:8000", "http://127.0.0.1:8000"]
+    allow_headers=["*"]
 )
 
 # =================================
@@ -242,7 +246,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 def index(request: Request):
     return templates.TemplateResponse(
         "index.html",
-        {"request": Request}
+        {"request": request}
     )
 
 """
