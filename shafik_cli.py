@@ -131,7 +131,55 @@ app.include_router(users.router)
 
     console.print("[cyan]Updated main.py (prepended FastAPI setup)[/]")
 
-    
+def ensure_db_in_main():
+    main_file = "main.py"
+
+    import_block = """from fastapi import Depends
+from sqlalchemy.orm import Session
+from app import database
+
+"""
+
+    db_block = """def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+db: Session = Depends(get_db)
+
+"""
+
+    # ❌ main.py নেই → create minimal
+    if not os.path.exists(main_file):
+        with open(main_file, "w") as f:
+            f.write(import_block + db_block)
+        console.print("[green]Created main.py with DB dependency[/]")
+        return
+
+    with open(main_file, "r") as f:
+        existing = f.read()
+
+    updated = existing
+
+    # add import if missing
+    if "from app import database" not in existing:
+        updated = import_block + updated
+        console.print("[cyan]Added DB imports to main.py[/]")
+
+    # add get_db if missing
+    if "def get_db()" not in existing:
+        updated = updated + "\n\n" + db_block
+        console.print("[cyan]Added get_db() to main.py[/]")
+
+    # write back only if changed
+    if updated != existing:
+        with open(main_file, "w") as f:
+            f.write(updated)
+    else:
+        console.print("[yellow]main.py already has DB setup[/]")
+
 # =========================================================
 # 🛠 CREATE APP
 # =========================================================
@@ -150,11 +198,14 @@ def create_app(
     if target == "router":
         content = """from fastapi import APIRouter
 
-    router = APIRouter()
+router = APIRouter(
+    prefix="/api/users",
+    tags=["users"]
+)
 
-    @router.get("/")
-    def index():
-        return {"message": "Router working"}
+@router.get("/")
+def index():
+    return {"message": "Router working"}
     """
         create_file_structure("router", "users.py", content)
 
@@ -199,21 +250,22 @@ engine = create_engine(
     os.getenv("DATABASE_URL"),
     connect_args={
         "ssl": {
-            "ca": os.getenv("SSL_PATH") 
+            "ca": os.getenv("SSL_PATH")
         }
     },
-    pool_pre_ping=True,    
-    pool_recycle=300, 
-    pool_size=5,      
-    max_overflow=10    
-
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
+    max_overflow=10
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-"""
+    """
         create_file_structure("app", "database.py", content)
 
+        # ✅ NEW: inject DB into main.py
+        ensure_db_in_main()
     else:
         console.print("[red]Unknown target![/]")
 
