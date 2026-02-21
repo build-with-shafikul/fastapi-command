@@ -7,7 +7,7 @@ setup(
     version=VERSION,
     py_modules=["shafik_cli"], 
     install_requires=[
-        "typer",
+        "typer", "rich",
     ],
     entry_points={
         "console_scripts": [
