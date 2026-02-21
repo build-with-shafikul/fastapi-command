@@ -98,6 +98,36 @@ def create_file_structure(dir_name: str, file_name: str, content: str = ""):
     else:
         console.print(f"[yellow]Already exists:[/] {file_path}")
 
+def create_html_file(file_name: str, content: str):
+    """
+    Create or update an HTML file dynamically.
+    
+    Args:
+        file_name (str): Name of the file to create (e.g., 'index.html')
+        content (str): HTML content to write into the file
+    """
+    # template folder path
+    templates_dir = Path("templates")  # root relative path
+    target_file = templates_dir / file_name
+
+    # ✅ Create templates folder if missing
+    if not templates_dir.exists():
+        templates_dir.mkdir(parents=True, exist_ok=True)
+        console.print(f"[cyan]Created folder:[/] {templates_dir}")
+    else:
+        console.print(f"[yellow]Folder already exists:[/] {templates_dir}")
+
+    # ✅ Create or update the HTML file
+    if not target_file.exists():
+        target_file.touch()
+        console.print(f"[cyan]Created file:[/] {target_file}")
+    else:
+        console.print(f"[yellow]File already exists, updating:[/] {target_file}")
+
+    # Write the HTML content
+    target_file.write_text(content, encoding="utf-8")
+    console.print(f"[green]HTML content written successfully to {target_file}![/]")
+
 
 # =========================================================
 # env generator
@@ -151,12 +181,69 @@ def ensure_env_file():
 def ensure_main_py():
     main_file = "main.py"
 
-    new_code = """from fastapi import FastAPI
-from sqlalchemy.orm import Session
+    new_code = """from fastapi import FastAPI,Request
+from fastapi.responses import HTMLResponse,JSONResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from pathlib import Path
 from router import users
 
 app = FastAPI()
+
+# =================================
+# Add Middleware
+# =================================
+app.middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+# =================================
+# Include Router
+# =================================
 app.include_router(users.router)
+
+# =================================
+# Template Dir & Static Dir
+# =================================
+BASE_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+
+# =================================
+# 404 Route 
+# =================================
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Resource Not Found", "details": exc.detail}
+        )
+        # return template.TemplateResponse(
+        #     '404.html',
+        #     {'request': request},
+        #     status_code=404
+        # )
+    return JSONResponse(
+         status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+# =================================
+# Route Start ... 
+# =================================
+@app.get('/', response_class=HTMLResponse)
+def index(request: Request):
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": Request}
+    )
 
 """
 
@@ -233,10 +320,10 @@ db: Session = Depends(get_db)
 
 
 # =========================================================
-#  package install for dependicy
+# 🌐 package install for dependicy
 # =========================================================
 def install_dependencies(packages: list[str]):
-    console.print("[cyan]Installing dependencies...[/]")
+    console.print("[cyan]🌐 Installing dependencies...[/]")
     for pkg in packages:
         subprocess.call([sys.executable, "-m", "pip", "install", pkg])
 
@@ -245,15 +332,27 @@ def install_dependencies(packages: list[str]):
 # =========================================================
 @create_app_cli.command("app")
 def create_app(
-    target: Optional[str] = typer.Argument(None, help="router, models, or database")
+    target: Optional[str] = typer.Argument(None, help="router, models, database, or html")
 ):
     show_banner()
-
+   
     if target is None:
-        console.print("\n[bold cyan]Options:[/] router, models, database")
+        console.print("\n[bold cyan]Options:[/] \n 1: router \n 2: models \n 3: database \n 4: html")
         target = typer.prompt("What do you want to create?")
 
-    target = target.lower()
+    # normalize input
+    target = str(target).strip().lower()
+
+    # map numeric input to text
+    num_map = {
+        "1": "router",
+        "2": "models",
+        "3": "database",
+        "4": "html"
+    }
+
+    if target in num_map:
+        target = num_map[target]
 
     if target == "router":
         content = """from fastapi import APIRouter
@@ -332,13 +431,124 @@ Base = declarative_base()
 
         # ✅ Auto install deps
         install_dependencies([
-            "sqlalchemy",
-            "python-dotenv"
+            # "fastapi",
+            # "uvicorn[all]",
+            # "jinja2",
+            # "sqlalchemy",
+            # "python-dotenv"
         ])
 
         console.print("[yellow]Run Command: alembic init migrations[/]")
         console.print("[yellow]Then Run Command: alembic revision --autogenerate -m 'create users table'[/]")
 
+    elif target == "html":
+        file_name = typer.prompt("Enter file name default", default="index.html").strip()
+        if file_name == 'index.html':
+            file_content = """
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shafikul FastAPI App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind config for custom transitions or dark mode
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+</head>
+
+<body class="bg-slate-100 dark:bg-slate-950 transition-colors duration-500">
+
+    <div class="fixed inset-0 -z-10 overflow-hidden">
+        <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-500/30 rounded-full blur-[120px] animate-pulse"></div>
+        <div class="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-blue-500/30 rounded-full blur-[120px]"></div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="min-h-screen flex flex-col items-center justify-center p-6">
+        
+        <!-- Dark Mode Toggle -->
+        <button onclick="document.documentElement.classList.toggle('dark')" class="absolute top-5 right-5 p-2 bg-white/20 dark:bg-gray-800/30 backdrop-blur-md border border-white/20 dark:border-white/10 rounded-full shadow-lg hover:scale-110 transition-transform">
+            <span class="dark:hidden">🌙</span>
+            <span class="hidden dark:inline">☀️</span>
+        </button>
+
+        <!-- Card -->
+        <div class="w-full max-w-md p-8 md:p-10 rounded-3xl
+                    bg-white/30 dark:bg-white/5 
+                    backdrop-blur-xl backdrop-saturate-150
+                    border border-white/40 dark:border-white/10
+                    shadow-[0_8px_32px_0_rgba(31,38,135,0.2)]
+                    text-center transform transition-all hover:shadow-2xl">
+            
+            <!-- Icon And Logo -->
+            <div class="inline-flex p-3 rounded-2xl bg-indigo-500/20 mb-6">
+                <svg class="w-10 h-10 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+            </div>
+
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-300 dark:to-purple-300 bg-clip-text text-transparent mb-4">
+                Shafikul FastAPI
+            </h1>
+            
+            <p class="text-slate-600 dark:text-slate-300 mb-8 leading-relaxed">
+                Build blazing fast APIs with the power of Python and modern UI design. High performance, easy to code, ready for production.
+            </p>
+
+            <div class="space-y-4">
+                <a href="#" class="block w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:-translate-y-1">
+                    Get Started
+                </a>
+                
+                <a href="#" class="block w-full py-3 px-6 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-slate-800 dark:text-white font-semibold rounded-xl border border-white/20 transition-all">
+                    Documentation
+                </a>
+            </div>
+
+            <!-- Status -->
+            <div class="mt-8 flex justify-center gap-4">
+                <div class="flex items-center gap-2 px-3 py-1 bg-green-500/20 rounded-full">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>
+                    <span class="text-xs font-medium text-green-700 dark:text-green-400">API Live</span>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-1 bg-blue-500/20 rounded-full text-blue-700 dark:text-blue-400">
+                    <span class="text-xs font-medium italic underline">v1.0.0</span>
+                </div>
+            </div>
+        </div>
+
+        <p class="mt-8 text-slate-500 dark:text-slate-500 text-sm">
+            © 2024 Shafikul. Made with ❤️
+        </p>
+    </div>
+
+</body>
+</html>
+"""
+        else:
+            file_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shafikul FastAPI APP</title>
+</head>
+<body>
+    <h1>Hello User</h1>
+</body>
+</html>
+"""
+        create_html_file(file_name, file_content)
 
     else:
         console.print("[red]Unknown target![/]")
