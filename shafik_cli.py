@@ -97,6 +97,41 @@ def create_file_structure(dir_name: str, file_name: str, content: str = ""):
         console.print(f"[yellow]Already exists:[/] {file_path}")
 
 
+def ensure_main_py():
+    main_file = "main.py"
+
+    new_code = """from fastapi import FastAPI
+from sqlalchemy.orm import Session
+from router import users
+
+app = FastAPI()
+app.include_router(users.router)
+
+"""
+
+    # ❌ main.py নেই → create
+    if not os.path.exists(main_file):
+        with open(main_file, "w") as f:
+            f.write(new_code)
+        console.print("[green]Created main.py with FastAPI setup[/]")
+        return
+
+    # ✅ আছে → read existing content
+    with open(main_file, "r") as f:
+        existing = f.read()
+
+    # duplicate check
+    if "app = FastAPI()" in existing:
+        console.print("[yellow]main.py already configured[/]")
+        return
+
+    # prepend new code
+    with open(main_file, "w") as f:
+        f.write(new_code + existing)
+
+    console.print("[cyan]Updated main.py (prepended FastAPI setup)[/]")
+
+    
 # =========================================================
 # 🛠 CREATE APP
 # =========================================================
@@ -115,27 +150,67 @@ def create_app(
     if target == "router":
         content = """from fastapi import APIRouter
 
-router = APIRouter()
+    router = APIRouter()
 
-@router.get("/")
-def index():
-    return {"message": "Router working"}
-"""
+    @router.get("/")
+    def index():
+        return {"message": "Router working"}
+    """
         create_file_structure("router", "users.py", content)
 
+        # ✅ NEW: ensure main.py exists and configured
+        ensure_main_py()
+
     elif target == "models":
-        content = """from .database import Base
-from sqlalchemy import Column, Integer
+        content = """from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from datetime import datetime
+from .database import Base
 
 class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True)
+    __tablename__ = "users" 
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, nullable=False)
+    email = Column(String(100), unique=True, index=True)
+    password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Post(Base):
+    __tablename__ = "posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String(250), nullable=True)
+    
+# add more table
 """
         create_file_structure("app", "models.py", content)
 
     elif target == "database":
-        content = """from sqlalchemy import create_engine
-# Database connection logic here
+        content = """import os
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+
+load_dotenv()
+
+engine = create_engine(
+    os.getenv("DATABASE_URL"),
+    connect_args={
+        "ssl": {
+            "ca": os.getenv("SSL_PATH") 
+        }
+    },
+    pool_pre_ping=True,    
+    pool_recycle=300, 
+    pool_size=5,      
+    max_overflow=10    
+
+)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 """
         create_file_structure("app", "database.py", content)
 
