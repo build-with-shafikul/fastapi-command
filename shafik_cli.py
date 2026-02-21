@@ -197,10 +197,10 @@ app = FastAPI()
 # =================================
 app.middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*", "http://localhost:8000", "http://127.0.0.1:8000"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*", "http://localhost:8000", "http://127.0.0.1:8000"]
 )
 
 # =================================
@@ -337,7 +337,7 @@ def create_app(
     show_banner()
    
     if target is None:
-        console.print("\n[bold cyan]Options:[/] \n 1: router \n 2: models \n 3: database \n 4: html")
+        console.print("\n[bold cyan]Options:[/] \n 1: router \n 2: models \n 3: html \n 4: database")
         target = typer.prompt("What do you want to create?")
 
     # normalize input
@@ -347,8 +347,8 @@ def create_app(
     num_map = {
         "1": "router",
         "2": "models",
-        "3": "database",
-        "4": "html"
+        "3": "html",
+        "4": "database"
     }
 
     if target in num_map:
@@ -432,14 +432,30 @@ Base = declarative_base()
         # ✅ Auto install deps
         install_dependencies([
             "fastapi",
-            "uvicorn[all]",
+            "uvicorn[standard]",
             "jinja2",
             "sqlalchemy",
             "python-dotenv"
         ])
 
-        console.print("[yellow]Run Command: alembic init migrations[/]")
-        console.print("[yellow]Then Run Command: alembic revision --autogenerate -m 'create users table'[/]")
+       
+        console.print(
+    Panel(
+        "[bold underline cyan]alembic init migrations[/]",
+        title="🚀 Run This Command",
+        border_style="green"
+    ),
+    Panel(
+        "[bold underline cyan]alembic revision --autogenerate -m 'create users table'[/]",
+        title="🚀 Run This Command",
+        border_style="green"
+    ),
+    Panel(
+        "[bold underline cyan]uvicorn main:app --reload[/]",
+        title="🌐 Running Server",
+        border_style="green"
+    )
+)
 
     elif target == "html":
         file_name = typer.prompt("Enter file name default", default="index.html").strip()
